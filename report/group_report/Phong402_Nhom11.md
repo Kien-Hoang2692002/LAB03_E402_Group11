@@ -71,7 +71,7 @@ Diagram: https://drive.google.com/file/d/1cAhsjtbK4ac7IR4flMvDOMj5joKIudEo/view?
 
 ### 2.3 LLM Providers Used
 - **Primary**: Gemini 2.5 Flash
-- **Secondary (Backup)**: 
+- **Secondary (Backup)**: gpt-4o
 
 ---
 
@@ -82,7 +82,7 @@ Diagram: https://drive.google.com/file/d/1cAhsjtbK4ac7IR4flMvDOMj5joKIudEo/view?
 - **Average Latency (P50)**: 2155ms
 - **Max Latency (P99)**: 28603ms
 - **Average Tokens per Task**: 8010ms
-- **Total Cost of Test Suite**: 
+- **Total Cost of Test Suite**: 0
 
 ---
 
@@ -93,20 +93,53 @@ Diagram: https://drive.google.com/file/d/1cAhsjtbK4ac7IR4flMvDOMj5joKIudEo/view?
 - **Input**: "How much is the tax for 500 in Vietnam?"
 - **Observation**: Agent called `calc_tax(amount=500, region="Asia")` while the tool only accepts 2-letter country codes.
 - **Root Cause**: The system prompt lacked enough `Few-Shot` examples for the tool's strict argument format.
+### 4.1. Early Termination in Multi-step Reasoning
+- **Input**:"Find Bluetooth headphones under 1 million VND, apply discounts if available, and select the cheapest product."
+- **Observation**:The agent only executed:search_products. Then terminated immediately (steps= 1) without:applying any discount, selecting the cheapest product
+- **Root Cause**: The agent failed to recognize this as a multi-step task requiring sequential reasoning
+The system prompt did not clearly define a step-by-step workflow (e.g., search → apply discount → compare → select).Although max_steps was set to 5, the agent terminated early due to lack of explicit planning instructions. The model assumed the first tool result was sufficient and did not continue reasoning
 
+### 4.2. No Action Taken for Knowledge-based Query
+- **Input**: "What is Bluetooth headphones? Explain briefly for beginners."
+- **Observation**: The agent returned:
+      steps = 0
+      reason = no_action
+    No response or meaningful output was generated
+- **Root Cause**
+    The system failed to correctly route the query to a direct LLM response
+    The agent pipeline was overly dependent on tool usage and lacked a fallback mechanism for non-tool queries
+    There was no clear instruction such as:
+                If no tool is required, answer directly using the language model
+    As a result, the agent did not take any action when the query did not match available tools
 ---
 
 ## 5. Ablation Studies & Experiments
 
 ### Experiment 1: Prompt v1 vs Prompt v2
-- **Diff**: [e.g., Adding "Always double check the tool arguments before calling".]
-- **Result**: Reduced invalid tool call errors by [e.g., 30%].
+- **Diff**:
+  Prompt v1: Generic instructions with no clear workflow
+  Prompt v2: Added explicit steps:
+    * Extract budget → call `search_products`
+    * Apply discount if available
+    * Select the cheapest product
+  Added constraints:
+    * Do not stop early
+    * Always map user requirements to tool parameters (e.g., price → max_price)
+- **Result**:
+  Reduced early termination errors
+  Reduced missing parameter issues (e.g., max_price)
+  Improved multi-step task handling
 
 ### Experiment 2 (Bonus): Chatbot vs Agent
 | Case | Chatbot Result | Agent Result | Winner |
-| :--- | :--- | :--- | :--- |
-| Simple Q | Correct | Correct | Draw |
-| Multi-step | Hallucinated | Correct | **Agent** |
+### Experiment 2 (Bonus): Chatbot vs Agent
+
+| Case                 | Chatbot Result                   | Agent Result                                     | Winner    |
+| Simple Question      | Correct explanation              | Correct explanation                              | Draw      |
+| Product Search       | Generic suggestions              | Retrieved real products via API                  | **Agent** |
+| Budget Constraint    | Ignored budget                   | Correctly filtered by price (`max_price`)        | **Agent** |
+| Discount Application | Hallucinated or skipped discount | Correctly applied discount using tool            | **Agent** |
+| Multi-step Task      | Incomplete reasoning             | Completed all steps (search → discount → select) | **Agent** |
 
 ---
 
@@ -114,10 +147,20 @@ Diagram: https://drive.google.com/file/d/1cAhsjtbK4ac7IR4flMvDOMj5joKIudEo/view?
 
 *Considerations for taking this system to a real-world environment.*
 
-- **Security**: [e.g., Input sanitization for tool arguments.]
-- **Guardrails**: [e.g., Max 5 loops to prevent infinite billing cost.]
-- **Scaling**: [e.g., Transition to LangGraph for more complex branching.]
-
+- **Security**: 
+      Validate and sanitize user inputs before passing to tools (e.g., query, max_price)
+      Secure API keys using environment variables (.env) and avoid hardcoding
+      Prevent malformed or adversarial inputs that could break tool execution
+- **Guardrails**: 
+      Limit maximum reasoning steps (e.g., max_steps = 5) to avoid infinite loops and high cost
+      Enforce rules such as:
+            Do not hallucinate discount codes
+            Only use predefined tools
+      Add fallback handling when tools fail (e.g., API error → return safe response)
+- **Scaling**: 
+      Modularize tools (search, pricing, discount) for easier extension
+      Support more complex workflows (e.g., multiple filters, ranking logic)
+      Consider migrating to frameworks like LangGraph for better control over multi-step reasoning and branching
 ---
 
 > [!NOTE]
