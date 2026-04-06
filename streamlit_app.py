@@ -3,6 +3,17 @@ from src.agent.agent import ReActAgent
 from src.core.gemini_provider import GeminiProvider
 from chatbot_baseline import GeminiChatbot
 
+import os
+import sys
+from dotenv import load_dotenv
+
+# Add src to path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from src.core.local_provider import LocalProvider
+load_dotenv()
+model_path = os.getenv("LOCAL_MODEL_PATH", "./models/Phi-3-mini-4k-instruct-q4.gguf")
+
 st.set_page_config(
     page_title="Shopping Deal Assistant",
     page_icon="🛒",
@@ -21,7 +32,7 @@ with st.sidebar:
     )
     
     if mode == "🤖 Agent (Real-time API)":
-        max_steps = st.slider("Max Steps:", 3, 10, 5)
+        max_steps = st.slider("Max Steps:",1, 3, 10, 5)
     else:
         max_steps = None
     
@@ -51,7 +62,7 @@ if prompt := st.chat_input("Nhập câu hỏi của bạn..."):
         with st.spinner("Thinking..."):
             try:
                 if mode == "🤖 Agent (Real-time API)":
-                    llm = GeminiProvider()
+                    llm = LocalProvider(model_path=model_path) #GeminiProvider()
                     agent = ReActAgent(llm=llm, max_steps=max_steps)
                     result = agent.run(prompt)
                     response = result["response"]
