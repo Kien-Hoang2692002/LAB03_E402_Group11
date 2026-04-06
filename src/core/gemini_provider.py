@@ -8,9 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class GeminiProvider(LLMProvider):
-    def __init__(self, model_name: str = "gemini-1.5-flash", api_key: Optional[str] = None):
-        
-        # 👉 ưu tiên api_key truyền vào, nếu không lấy từ env
+    def __init__(self, model_name: str = "gemini-2.5-flash", api_key: Optional[str] = None):
         if api_key is None:
             api_key = os.getenv("GEMINI_API_KEY")
 
