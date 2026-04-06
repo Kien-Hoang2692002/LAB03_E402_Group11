@@ -11,7 +11,7 @@
 *Describe your specific contribution to the codebase (e.g., implemented a specific tool, fixed the parser, etc.).*
 
 - **Modules Implementated**: src/tools/shopping_tool.py
-- **Code Highlights**: research and design of the shopping tool without direct code implementation. Defined detailed input/output schemas, and realistic use cases based on user needs (e.g., budget, product specs). These specifications enabled the engineering team to implement a reliable tool that integrates effectively with the ReAct reasoning loop, reducing ambiguity and improving tool-call accuracy.
+- **Code Highlights**: research and design of the shopping tool. Defined detailed input/output schemas, and realistic use cases based on user needs (e.g., budget, product specs). These specifications enabled the team to implement a reliable tool that integrates effectively with the ReAct reasoning loop, reducing ambiguity and improving tool-call accuracy.
 - **Documentation**: The shopping tool is integrated into the ReAct (Reasoning + Acting) loop to support dynamic product retrieval. The agent first performs reasoning to extract key user requirements such as budget, category, and specifications. Based on this, it decides whether to invoke the shopping tool. During the action step, the agent calls the tool with structured arguments (e.g., price_max, category, specs). The tool returns relevant product results, which are fed back into the observation step. The agent then uses this information to refine its reasoning or generate a final, grounded response. This interaction helps reduce hallucination and ensures responses are based on real data.
 
 ---
