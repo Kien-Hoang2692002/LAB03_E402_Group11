@@ -46,7 +46,7 @@ class ReActAgent:
         return REACT_SYSTEM_PROMPT
 
     def run(self, user_input: str) -> Dict[str, Any]:
-        """Main ReAct loop. Returns agent result with metrics."""
+        """ReAct loop với better error handling."""
         
         # 1. Check cache first
         normalized_query = user_input.strip().lower()
@@ -74,8 +74,7 @@ class ReActAgent:
 
         logger.log_event("AGENT_START", {
             "input": user_input,
-            "model": self.llm.model_name,
-            "max_steps": self.max_steps
+            "model": self.llm.model_name
         })
         
         start_time = time.time()
@@ -84,7 +83,6 @@ class ReActAgent:
         total_tokens = 0
         
         while steps < self.max_steps:
-            # Generate LLM response
             response = self.llm.generate(
                 prompt=current_prompt,
                 system_prompt=self.get_system_prompt()
@@ -95,7 +93,7 @@ class ReActAgent:
             
             print(f"\n[Step {steps}] LLM:\n{content}\n")
             
-            # Check for Final Answer
+            # Check Final Answer FIRST
             if "Final Answer:" in content:
                 final_answer = content.split("Final Answer:")[-1].strip()
                 latency_ms = int((time.time() - start_time) * 1000)
@@ -103,8 +101,7 @@ class ReActAgent:
                 logger.log_event("AGENT_END", {
                     "steps": steps,
                     "reason": "final_answer",
-                    "latency_ms": latency_ms,
-                    "total_tokens": total_tokens
+                    "latency_ms": latency_ms
                 })
                 
                 # Save to cache with timestamp
@@ -123,25 +120,37 @@ class ReActAgent:
                     "cached": False
                 }
             
-            # Parse Action
-            action_match = re.search(r"Action:\s*(\w+)\((.*?)\)", content, re.DOTALL)
+            # Parse Action - IMPROVED REGEX
+            action_match = re.search(
+                r"Action:\s*(\w+)\s*\(\s*(.*?)\s*\)",
+                content,
+                re.DOTALL | re.IGNORECASE  # ← Case insensitive + multiline
+            )
             
             if not action_match:
-                logger.log_event("AGENT_END", {"steps": steps, "reason": "no_action"})
-                return {
-                    "response": "❌ Không tìm thấy action trong response",
-                    "steps": steps,
-                    "tokens_used": total_tokens,
-                    "latency_ms": int((time.time() - start_time) * 1000),
-                    "success": False
-                }
+                print(f"⚠️ Không tìm action. Content:\n{content}")
+                
+                # Try to extract keyword và suggest
+                if "search" in content.lower():
+                    observation = "Gợi ý: Hãy gọi search_products(query, max_price)"
+                elif "discount" in content.lower():
+                    observation = "Gợi ý: Hãy gọi get_discount(code)"
+                elif "final" in content.lower() or "answer" in content.lower():
+                    observation = "Bạn có đủ thông tin rồi, hãy trả lời Final Answer"
+                else:
+                    observation = f"Lỗi parse. Hãy viết chính xác: Action: tool_name(args)"
+                
+                current_prompt += f"\n{content}\nObservation: {observation}\n\nHãy thử lại."
+                steps += 1
+                continue
             
             # Execute tool
             tool_name = action_match.group(1).strip()
             args_str = action_match.group(2).strip()
+            
             observation = self._execute_tool(tool_name, args_str)
             
-            print(f"[Tool] {tool_name}\n[Observation] {observation}\n")
+            print(f"[Tool] {tool_name}({args_str})\n[Observation] {observation}\n")
             
             logger.log_event("TOOL_EXECUTED", {
                 "step": steps,
@@ -149,15 +158,13 @@ class ReActAgent:
                 "observation": observation
             })
             
-            # Append to prompt
             current_prompt += f"\n{content}\nObservation: {observation}"
             steps += 1
         
         latency_ms = int((time.time() - start_time) * 1000)
         logger.log_event("AGENT_END", {
             "steps": steps,
-            "reason": "max_steps_exceeded",
-            "latency_ms": latency_ms
+            "reason": "max_steps_exceeded"
         })
         
         return {
