@@ -145,7 +145,6 @@ if prompt := st.chat_input("Nhập câu hỏi của bạn..."):
     with st.chat_message("assistant", avatar="🤖"):
         with st.spinner("Thinking..."):
             try:
-<<<<<<< HEAD
                 result, provider_used = run_with_fallback(
                     prompt, mode, provider_choice, max_steps
                 )
@@ -155,7 +154,6 @@ if prompt := st.chat_input("Nhập câu hỏi của bạn..."):
                 # Show provider info
                 if "fallback" in provider_used:
                     st.warning(f"⚠️ Fallback activated → {provider_used}")
-=======
                 if mode == "🤖 Agent (Real-time API)":
                     llm = GeminiProvider()
                     agent = ReActAgent(llm=llm, max_steps=max_steps, cache_ttl=cache_ttl)
@@ -166,7 +164,6 @@ if prompt := st.chat_input("Nhập câu hỏi của bạn..."):
                         response += "\n\n> ⚡ *Kết quả được tự động lấy từ bộ nhớ đệm (Lịch sử truy vấn) - Tokens: 0*"
                         
                     role = "agent"
->>>>>>> 8f9cebbe1372552b8a6f7795f417a03d3279af71
                 else:
                     st.caption(f"Provider: {provider_used}")
 

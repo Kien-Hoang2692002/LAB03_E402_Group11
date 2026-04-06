@@ -20,3 +20,5 @@ pip install -r requirements.txt
 ```bash
 python main.py
 ```
+Bổ sung
+pip install google-search-results>=2.4.0
