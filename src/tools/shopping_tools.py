@@ -1,6 +1,7 @@
 import os
 import json
 from typing import List, Dict, Optional
+from urllib.parse import urlparse, urlunparse, quote
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -55,11 +56,22 @@ def search_products(query: str, max_price: int = None) -> List[Dict]:
             if max_price and price > max_price:
                 continue
             
+            raw_link = item.get("product_link", "#")
+            if raw_link != "#":
+                # Tách URL ra thành các phần để tránh mã hóa sai các dấu :, /, ?
+                parsed = urlparse(raw_link)
+                # Chỉ mã hóa các ký tự đặc biệt/dấu cách ở phần query (sau dấu ?), giữ lại các dấu =, &
+                safe_query = quote(parsed.query, safe='=&?')
+                # Ghép URL lại
+                safe_link = urlunparse(parsed._replace(query=safe_query))
+            else:
+                safe_link = "#"
+
             products.append({
                 "name": item.get("title", "Unknown"),
                 "price": price,
                 "currency": "VND",
-                "product_link": item.get("product_link", "#"),
+                "product_link": safe_link,
                 "rating": item.get("rating", "N/A"),
             })
         
