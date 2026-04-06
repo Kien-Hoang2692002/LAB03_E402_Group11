@@ -3,9 +3,9 @@ import re
 from typing import List, Dict, Any, Optional
 from src.core.llm_provider import LLMProvider
 from src.telemetry.logger import logger
-from tools.search import search_products
-from tools.coupon import apply_coupon
-from tools.rank import select_cheapest
+from src.tools.search import search_products
+from src.tools.coupon import apply_coupon
+from src.tools.rank import select_cheapest
 
 class ReActAgent:
     """

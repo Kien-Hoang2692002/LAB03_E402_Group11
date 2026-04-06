@@ -1,5 +1,5 @@
-from agent.agent import ShoppingAgent
-from core.gemini_provider import GeminiProvider
+from src.agent.agent import ShoppingAgent
+from src.core.gemini_provider import GeminiProvider
 
 def main():
     llm = GeminiProvider()
