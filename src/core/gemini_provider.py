@@ -27,7 +27,34 @@ class GeminiProvider(LLMProvider):
         if system_prompt:
             full_prompt = f"System: {system_prompt}\n\nUser: {prompt}"
 
-        response = self.model.generate_content(full_prompt)
+        import re
+        max_retries = 5
+        response = None
+        
+        for attempt in range(max_retries):
+            try:
+                response = self.model.generate_content(full_prompt)
+                break
+            except Exception as e:
+                error_msg = str(e)
+                if "429" in error_msg or "Quota exceeded" in error_msg:
+                    if attempt < max_retries - 1:
+                        # Extract exact wait time from API error if possible
+                        wait_match = re.search(r"retry in (\d+(?:\.\d+)?)s", error_msg)
+                        if wait_match:
+                            retry_delay = float(wait_match.group(1)) + 2.0 # Wait exactly what it needs + 2s buffer
+                        else:
+                            retry_delay = 15.0 * (2 ** attempt) # Fallback exponential: 15s, 30s, 60s
+                        
+                        print(f"⚠️ API Rate Limit. Chờ {retry_delay:.1f}s trước khi thử lại... (Lần {attempt+1}/{max_retries})")
+                        time.sleep(retry_delay)
+                    else:
+                        raise e
+                else:
+                    raise e
+                    
+        if not response:
+            raise RuntimeError("Failed to generate content after retries.")
 
         end_time = time.time()
         latency_ms = int((end_time - start_time) * 1000)
