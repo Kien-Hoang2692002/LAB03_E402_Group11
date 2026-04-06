@@ -1,7 +1,7 @@
 # Individual Report: Lab 3 - Chatbot vs ReAct Agent
 
-- **Student Name**: Hà Hữu An
-- **Student ID**: 2A202600368
+- **Student Name**: Hoàng Văn Kiên
+- **Student ID**: 2A202600077
 - **Date**: 2026-04-06
 
 ## I. Technical Contribution (15 Points)
@@ -13,8 +13,24 @@ Trong bài lab này, tôi tập trung vào việc xây dựng và cải tiến *
 - `src/tools/shopping_tools.py`
 
 **Các tính năng chính đã tích hợp:**
-tích hợp lưu trữ (cache) để tối ưu hiệu suất truy vấn từ prompt và xóa cache trong thời gian quy định 
+- Tích hợp `LLMProvider` và hệ thống logging
+- Xây dựng đầy đủ ReAct Loop
+- Tool Execution Engine hỗ trợ gọi dynamic các tool
+- Caching mechanism để tối ưu hiệu suất
+- Flexible Action Parsing hỗ trợ nhiều format output của LLM
 
+**Code Highlights:**
+
+```python
+# ReAct Loop Implementation
+while steps < self.max_steps:
+    response = self.llm.generate(
+        prompt=current_prompt,
+        system_prompt=self.get_system_prompt()
+    )
+    # Thought → Action → Observation → Final Answer
+Luồng hoạt động của agent: Nhận input từ user Gửi vào LLM với REACT_SYSTEM_PROMPT LLM sinh ra: Thought Action Agent parse Action → gọi tool Nhận Observation → append vào prompt Lặp lại cho đến khi có Final Answer
+```
 
 ## II. Debugging Case Study (10 Points)
 
@@ -26,10 +42,16 @@ Agent không parse được action khi LLM trả về format khác dự kiến (
 
 **Diagnosis:**  
 Nguyên nhân: Regex ban đầu chỉ hỗ trợ format `Action: tool(arg1, arg2)`.  
+Tuy nhiên, LLM đôi khi trả về theo format khác:
+→ Dẫn đến agent không nhận diện được action và kết thúc sớm.
 
 **Solution:**  
 Thêm fallback parsing để tăng tính robust:
 
+```python
+action_name_match = re.search(r"Action:\s*(\w+)", content)
+action_input_match = re.search(r"Action Input:\s*(\{.*?\})", content, re.DOTALL)
+```
 ## III. Personal Insights: Chatbot vs ReAct (10 Points)
 
 ### 1. Reasoning

@@ -120,6 +120,7 @@ class ReActAgent:
                     "cached": False
                 }
             
+<<<<<<< HEAD
             # Parse Action - IMPROVED REGEX
             action_match = re.search(
                 r"Action:\s*(\w+)\s*\(\s*(.*?)\s*\)",
@@ -144,6 +145,43 @@ class ReActAgent:
                 steps += 1
                 continue
             
+=======
+            # Parse Action
+            """action_match = re.search(r"Action:\s*(\w+)\((.*?)\)", content, re.DOTALL)
+            
+            if not action_match:
+                logger.log_event("AGENT_END", {"steps": steps, "reason": "no_action"})
+                return {
+                    "response": "❌ Không tìm thấy action trong response",
+                    "steps": steps,
+                    "tokens_used": total_tokens,
+                    "latency_ms": int((time.time() - start_time) * 1000),
+                    "success": False
+                }"""
+            action_match = re.search(r"Action:\s*(\w+)\((.*?)\)", content, re.DOTALL)
+
+            if action_match:
+                tool_name = action_match.group(1).strip()
+                args_str = action_match.group(2).strip()
+
+            else:
+                # Try format 2: OpenAI style (Action + Action Input JSON)
+                action_name_match = re.search(r"Action:\s*(\w+)", content)
+                action_input_match = re.search(r"Action Input:\s*(\{.*?\})", content, re.DOTALL)
+
+                if action_name_match and action_input_match:
+                    tool_name = action_name_match.group(1).strip()
+                    args_str = action_input_match.group(1).strip()
+                else:
+                    logger.log_event("AGENT_END", {"steps": steps, "reason": "no_action"})
+                    return {
+                        "response": "❌ Không tìm thấy action trong response",
+                        "steps": steps,
+                        "tokens_used": total_tokens,
+                        "latency_ms": int((time.time() - start_time) * 1000),
+                        "success": False
+                    }
+>>>>>>> 796463936eb27059360248792004d25343f046ac
             # Execute tool
             tool_name = action_match.group(1).strip()
             args_str = action_match.group(2).strip()
