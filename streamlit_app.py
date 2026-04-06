@@ -22,6 +22,7 @@ with st.sidebar:
     
     if mode == "🤖 Agent (Real-time API)":
         max_steps = st.slider("Max Steps:", 3, 10, 5)
+        cache_ttl = st.slider("Thời gian lưu Cache (giây):", 0, 3600, 300, 10)
     else:
         max_steps = None
     
@@ -52,9 +53,13 @@ if prompt := st.chat_input("Nhập câu hỏi của bạn..."):
             try:
                 if mode == "🤖 Agent (Real-time API)":
                     llm = GeminiProvider()
-                    agent = ReActAgent(llm=llm, max_steps=max_steps)
+                    agent = ReActAgent(llm=llm, max_steps=max_steps, cache_ttl=cache_ttl)
                     result = agent.run(prompt)
                     response = result["response"]
+                    
+                    if result.get("cached"):
+                        response += "\n\n> ⚡ *Kết quả được tự động lấy từ bộ nhớ đệm (Lịch sử truy vấn) - Tokens: 0*"
+                        
                     role = "agent"
                 else:
                     chatbot = GeminiChatbot()
