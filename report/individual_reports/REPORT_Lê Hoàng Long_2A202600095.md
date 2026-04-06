@@ -32,7 +32,7 @@
 *Reflect on the reasoning capability difference.*
 
 1.  **Reasoning**: How did the `Thought` block help the agent compared to a direct Chatbot answer?
-    It work better, the information is more reliable 
+    It works better, the information is more reliable 
 2.  **Reliability**: There isn't such cases 
 3.  **Observation**: It depends much on the context of the  query
 
