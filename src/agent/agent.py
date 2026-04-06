@@ -6,6 +6,12 @@ from src.telemetry.logger import logger
 from src.tools.search import search_products
 from src.tools.coupon import apply_coupon
 from src.tools.rank import select_cheapest
+import json
+from src.agent.prompts import (
+    PARSE_PROMPT,
+    PLANNING_PROMPT,
+    FINAL_RESPONSE_PROMPT
+)
 
 class ReActAgent:
     """
@@ -81,18 +87,103 @@ class ShoppingAgent:
     def __init__(self, llm):
         self.llm = llm
 
-    def run(self, query: str):
-        # Step 1: parse đơn giản (hardcode tạm)
-        max_price = 1_000_000
+    
 
-        # Step 2: search
-        products = search_products(query, max_price)
+    def run(self, query):
+        # =========================
+        # 1. PARSE USER INPUT 🧠
+        # =========================
+        parse_prompt = PARSE_PROMPT.format(query=query)
+        parse_response = self.llm.generate(parse_prompt)
 
-        # Step 3: apply coupon
-        for p in products:
-            p["final_price"] = apply_coupon(p)
+        def clean_json(text):
+            if isinstance(text, dict):
+                return text
 
-        # Step 4: chọn rẻ nhất
-        best = select_cheapest(products)
+            # xoá markdown
+            text = text.replace("```json", "").replace("```", "").strip()
 
-        return best
+            # lấy phần JSON đầu tiên
+            match = re.search(r"\{.*\}", text, re.DOTALL)
+            if match:
+                text = match.group(0)
+
+            return text
+
+        cleaned = clean_json(parse_response)
+
+        if isinstance(parse_response, dict):
+            parsed = cleaned
+        else:
+            # clean text
+            parse_response = cleaned.replace("```json", "").replace("```", "").strip()
+            
+            try:
+                parsed = json.loads(cleaned)
+            except:
+                parsed = {
+                    "product": query,
+                    "max_price": None,
+                    "other_requirements": ""
+                }
+
+        product = parsed.get("product")
+        max_price = parsed.get("max_price")
+
+        # =========================
+        # 2. PLANNING 🧠
+        # =========================
+        planning_prompt = PLANNING_PROMPT.format(query=query)
+        plan_response = self.llm.generate(planning_prompt)
+
+        if isinstance(plan_response, list):
+            plan = plan_response
+        elif isinstance(plan_response, dict):
+            plan = plan_response.get("plan", ["search_products"])
+        else:
+            plan_response = plan_response.replace("```json", "").replace("```", "").strip()
+            try:
+                plan = json.loads(plan_response)
+            except:
+                plan = ["search_products", "select_cheapest"]
+
+        # =========================
+        # 3. EXECUTE TOOLS 🛠
+        # =========================
+        products = None
+        best_product = None
+        exchange_result = None # Thêm biến lưu kết quả tỉ giá
+
+        for step in plan:
+            # Nếu step liên quan đến tìm kiếm sản phẩm
+            if step == "search_products":
+                products = search_products(product, max_price)
+
+            # MỚI: Nếu step liên quan đến đổi tỉ giá
+            elif step == "get_exchange_rate":
+                # Giả sử bạn có hàm get_rate(from_currency, to_currency, amount)
+                # Bạn cần trích xuất thông tin này từ 'parsed' ở bước 1
+                from_cur = parsed.get("from_currency", "USD")
+                to_cur = parsed.get("to_currency", "VND")
+                amount = parsed.get("amount", 1)
+                # exchange_result = get_realtime_exchange_rate(from_cur, to_cur, amount)
+
+            elif step == "apply_coupon" and products:
+                products = [apply_coupon(p) for p in products]
+
+            elif step == "select_cheapest" and products:
+                best_product = select_cheapest(products)
+
+        # =========================
+        # 4. FINAL RESPONSE 🧾
+        # =========================
+        # Cập nhật context để LLM biết kết quả của CẢ sản phẩm và tỉ giá
+        final_prompt = FINAL_RESPONSE_PROMPT.format(
+            query=query,
+            product_info=best_product,
+            exchange_info=exchange_result # Truyền thêm thông tin tỉ giá vào prompt cuối
+        )
+
+        final_answer = self.llm.generate(final_prompt)
+
+        return final_answer
