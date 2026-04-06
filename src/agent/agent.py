@@ -1,98 +1,145 @@
 import os
 import re
+import json
+import time
 from typing import List, Dict, Any, Optional
+from dotenv import load_dotenv
+
 from src.core.llm_provider import LLMProvider
 from src.telemetry.logger import logger
-from src.tools.search import search_products
-from src.tools.coupon import apply_coupon
-from src.tools.rank import select_cheapest
+from src.agent.prompts import REACT_SYSTEM_PROMPT
+from src.tools.shopping_tools import search_products, get_discount, calc_final_price
+
+load_dotenv()
+
 
 class ReActAgent:
-    """
-    SKELETON: A ReAct-style Agent that follows the Thought-Action-Observation loop.
-    Students should implement the core loop logic and tool execution.
-    """
+    """ReAct Agent with Thought-Action-Observation loop."""
     
-    def __init__(self, llm: LLMProvider, tools: List[Dict[str, Any]], max_steps: int = 5):
+    def __init__(self, llm: LLMProvider, max_steps: int = 5):
         self.llm = llm
-        self.tools = tools
         self.max_steps = max_steps
-        self.history = []
 
     def get_system_prompt(self) -> str:
-        """
-        TODO: Implement the system prompt that instructs the agent to follow ReAct.
-        Should include:
-        1.  Available tools and their descriptions.
-        2.  Format instructions: Thought, Action, Observation.
-        """
-        tool_descriptions = "\n".join([f"- {t['name']}: {t['description']}" for t in self.tools])
-        return f"""
-        You are an intelligent assistant. You have access to the following tools:
-        {tool_descriptions}
+        return REACT_SYSTEM_PROMPT
 
-        Use the following format:
-        Thought: your line of reasoning.
-        Action: tool_name(arguments)
-        Observation: result of the tool call.
-        ... (repeat Thought/Action/Observation if needed)
-        Final Answer: your final response.
-        """
-
-    def run(self, user_input: str) -> str:
-        """
-        TODO: Implement the ReAct loop logic.
-        1. Generate Thought + Action.
-        2. Parse Action and execute Tool.
-        3. Append Observation to prompt and repeat until Final Answer.
-        """
-        logger.log_event("AGENT_START", {"input": user_input, "model": self.llm.model_name})
+    def run(self, user_input: str) -> Dict[str, Any]:
+        """Main ReAct loop. Returns agent result with metrics."""
         
+        logger.log_event("AGENT_START", {
+            "input": user_input,
+            "model": self.llm.model_name,
+            "max_steps": self.max_steps
+        })
+        
+        start_time = time.time()
         current_prompt = user_input
         steps = 0
-
+        total_tokens = 0
+        
         while steps < self.max_steps:
-            # TODO: Generate LLM response
-            # result = self.llm.generate(current_prompt, system_prompt=self.get_system_prompt())
+            # Generate LLM response
+            response = self.llm.generate(
+                prompt=current_prompt,
+                system_prompt=self.get_system_prompt()
+            )
             
-            # TODO: Parse Thought/Action from result
+            content = response["content"]
+            total_tokens += response.get("usage", {}).get("total_tokens", 0)
             
-            # TODO: If Action found -> Call tool -> Append Observation
+            print(f"\n[Step {steps}] LLM:\n{content}\n")
             
-            # TODO: If Final Answer found -> Break loop
+            # Check for Final Answer
+            if "Final Answer:" in content:
+                final_answer = content.split("Final Answer:")[-1].strip()
+                latency_ms = int((time.time() - start_time) * 1000)
+                
+                logger.log_event("AGENT_END", {
+                    "steps": steps,
+                    "reason": "final_answer",
+                    "latency_ms": latency_ms,
+                    "total_tokens": total_tokens
+                })
+                
+                return {
+                    "response": final_answer,
+                    "steps": steps,
+                    "tokens_used": total_tokens,
+                    "latency_ms": latency_ms,
+                    "success": True
+                }
             
+            # Parse Action
+            action_match = re.search(r"Action:\s*(\w+)\((.*?)\)", content, re.DOTALL)
+            
+            if not action_match:
+                logger.log_event("AGENT_END", {"steps": steps, "reason": "no_action"})
+                return {
+                    "response": "❌ Không tìm thấy action trong response",
+                    "steps": steps,
+                    "tokens_used": total_tokens,
+                    "latency_ms": int((time.time() - start_time) * 1000),
+                    "success": False
+                }
+            
+            # Execute tool
+            tool_name = action_match.group(1).strip()
+            args_str = action_match.group(2).strip()
+            observation = self._execute_tool(tool_name, args_str)
+            
+            print(f"[Tool] {tool_name}\n[Observation] {observation}\n")
+            
+            logger.log_event("TOOL_EXECUTED", {
+                "step": steps,
+                "tool": tool_name,
+                "observation": observation
+            })
+            
+            # Append to prompt
+            current_prompt += f"\n{content}\nObservation: {observation}"
             steps += 1
+        
+        latency_ms = int((time.time() - start_time) * 1000)
+        logger.log_event("AGENT_END", {
+            "steps": steps,
+            "reason": "max_steps_exceeded",
+            "latency_ms": latency_ms
+        })
+        
+        return {
+            "response": "❌ Vượt quá số bước tối đa",
+            "steps": steps,
+            "tokens_used": total_tokens,
+            "latency_ms": latency_ms,
+            "success": False
+        }
+
+    def _execute_tool(self, tool_name: str, args_str: str) -> str:
+        """Execute tool dynamically."""
+        try:
+            args = [arg.strip().strip("'\"") for arg in args_str.split(",")]
             
-        logger.log_event("AGENT_END", {"steps": steps})
-        return "Not implemented. Fill in the TODOs!"
-
-    def _execute_tool(self, tool_name: str, args: str) -> str:
-        """
-        Helper method to execute tools by name.
-        """
-        for tool in self.tools:
-            if tool['name'] == tool_name:
-                # TODO: Implement dynamic function calling or simple if/else
-                return f"Result of {tool_name}"
-        return f"Tool {tool_name} not found."
-    
-
-class ShoppingAgent:
-    def __init__(self, llm):
-        self.llm = llm
-
-    def run(self, query: str):
-        # Step 1: parse đơn giản (hardcode tạm)
-        max_price = 1_000_000
-
-        # Step 2: search
-        products = search_products(query, max_price)
-
-        # Step 3: apply coupon
-        for p in products:
-            p["final_price"] = apply_coupon(p)
-
-        # Step 4: chọn rẻ nhất
-        best = select_cheapest(products)
-
-        return best
+            if tool_name == "search_products":
+                query = args[0] if len(args) > 0 else ""
+                max_price = int(args[1]) if len(args) > 1 and args[1] else None
+                result = search_products(query, max_price)
+                
+            elif tool_name == "get_discount":
+                code = args[0] if len(args) > 0 else ""
+                result = get_discount(code)
+                
+            elif tool_name == "calc_final_price":
+                price = float(args[0]) if len(args) > 0 else 0
+                discount_percent = float(args[1]) if len(args) > 1 and args[1] else 0
+                discount_fixed = float(args[2]) if len(args) > 2 and args[2] else 0
+                quantity = int(args[3]) if len(args) > 3 and args[3] else 1
+                result = calc_final_price(price, discount_percent, discount_fixed, quantity)
+                
+            else:
+                return json.dumps({"error": f"Tool không biết: {tool_name}"}, ensure_ascii=False)
+            
+            return json.dumps(result, ensure_ascii=False, indent=2)
+            
+        except Exception as e:
+            logger.log_event("TOOL_ERROR", {"tool": tool_name, "error": str(e)})
+            return json.dumps({"error": str(e)}, ensure_ascii=False)
