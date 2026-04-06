@@ -20,7 +20,7 @@
 ### 1.1 Agent Goal
 
 The goal of our system is to build a **Shopping Deal Assistant** that helps users:
-- Find products based on user requirements (e.g., type, features, performance)  
+- Find products based on user requirements (e.g., type, features, price)  
 - Filter products within a given budget  
 - Optimize selection based on user criteria (e.g., cheapest, best performance, best value)  
 
@@ -51,7 +51,7 @@ Success is defined as:
 👉 Example:
 - Query: *"Tìm laptop dưới 15 triệu cấu hình mạnh nhất"*  
   - Chatbot: đưa gợi ý chung  
-  - Agent: lọc theo budget + chọn cấu hình tốt nhất  
+  - Agent: lọc theo budget + chọn cấu hình,tiêu chí tốt nhất  
 
 
 
@@ -65,8 +65,8 @@ Diagram: https://drive.google.com/file/d/1cAhsjtbK4ac7IR4flMvDOMj5joKIudEo/view?
 ### 2.2 Tool Definitions (Inventory)
 | Tool Name | Input Format | Use Case |
 | :--- | :--- | :--- |
-| `calc_tax` | `json` | Calculate VAT based on country code. |
-| `search_api` | `string` | Retrieve real-time information from Google Search. |
+| `search_products` | `json (query, max_price optional)` | Tìm kiếm sản phẩm theo từ khóa từ Google Shopping (SerpAPI), lọc theo ngân sách nếu có. |
+| `calc_final_price` | `json (original_price, discount_percent, discount_fixed, quantity)` | Tính giá cuối cùng sau khi áp dụng mã giảm giá . |
 
 
 ### 2.3 LLM Providers Used
@@ -79,17 +79,16 @@ Diagram: https://drive.google.com/file/d/1cAhsjtbK4ac7IR4flMvDOMj5joKIudEo/view?
 
 *Analyze the industry metrics collected during the final test run.*
 
-- **Average Latency (P50)**: [e.g., 1200ms]
-- **Max Latency (P99)**: [e.g., 4500ms]
-- **Average Tokens per Task**: [e.g., 350 tokens]
-- **Total Cost of Test Suite**: [e.g., $0.05]
+- **Average Latency (P50)**: 2155ms
+- **Max Latency (P99)**: 28603ms
+- **Average Tokens per Task**: 8010ms
+- **Total Cost of Test Suite**: 
 
 ---
 
 ## 4. Root Cause Analysis (RCA) - Failure Traces
 
 *Deep dive into why the agent failed.*
-
 ### Case Study: [e.g., Hallucinated Argument]
 - **Input**: "How much is the tax for 500 in Vietnam?"
 - **Observation**: Agent called `calc_tax(amount=500, region="Asia")` while the tool only accepts 2-letter country codes.
