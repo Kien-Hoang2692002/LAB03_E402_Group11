@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 
 from src.core.gemini_provider import GeminiProvider
 from src.telemetry.logger import logger
+from src.core.openai_provider import OpenAIProvider
 
 load_dotenv()
 
@@ -151,12 +152,35 @@ HƯỚNG DẪN:
         with open(filename, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         print(f"💾 Exported to {filename}")
+class OpenAIChatbot:
+  
+    def __init__(self):
+        self.llm = OpenAIProvider()
+        self.conversation_history = []
+        print("✅ OpenAI Chatbot initialized")
 
+    def _calculate_openai_cost(self, input_tokens: int, output_tokens: int) -> float:
+        """
+        Example pricing (gpt-4o-mini)
+        """
+        input_cost = (input_tokens / 1_000_000) * 0.15
+        output_cost = (output_tokens / 1_000_000) * 0.6
+        return input_cost + output_cost
+
+    def get_system_prompt(self) -> str:
+        return """Bạn là một trợ lý mua sắm thông minh.
+
+HƯỚNG DẪN:
+1. Lắng nghe yêu cầu của khách hàng
+2. Gợi ý sản phẩm phù hợp
+3. Ước lượng giá
+4. Trả lời ngắn gọn
+"""
 
 def main():
     """Interactive chatbot session."""
     try:
-        chatbot = GeminiChatbot()
+        chatbot = OpenAIChatbot()
     except Exception as e:
         print(f"❌ Failed to initialize: {e}")
         return
