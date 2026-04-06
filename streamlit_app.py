@@ -36,9 +36,10 @@ with st.sidebar:
 
     if mode == "🤖 Agent (Real-time API)":
         max_steps = st.slider("Max Steps:", 3, 10, 5)
-        cache_ttl = st.slider("Thời gian lưu Cache (giây):", 0, 3600, 300, 10)
+        cache_ttl = st.slider("Cache TTL (seconds):", 0, 3600, 300, 10)
     else:
         max_steps = None
+        cache_ttl = None
 
     if st.button("🗑️ Clear Chat History"):
         st.session_state.messages = []
@@ -64,17 +65,12 @@ for message in st.session_state.messages:
 # =========================
 # FALLBACK LOGIC
 # =========================
-def run_with_fallback(prompt, mode, provider_choice, max_steps=None):
-    """
-    Run with:
-    - Manual provider OR
-    - Auto fallback (Gemini → OpenAI)
-    """
+def run_with_fallback(prompt, mode, provider_choice, max_steps=None, cache_ttl=None):
 
     def run_gemini():
         if mode == "🤖 Agent (Real-time API)":
             llm = GeminiProvider()
-            agent = ReActAgent(llm=llm, max_steps=max_steps)
+            agent = ReActAgent(llm=llm, max_steps=max_steps, cache_ttl=cache_ttl)
             return agent.run(prompt)
         else:
             chatbot = GeminiChatbot()
@@ -83,7 +79,7 @@ def run_with_fallback(prompt, mode, provider_choice, max_steps=None):
     def run_openai():
         if mode == "🤖 Agent (Real-time API)":
             llm = OpenAIProvider()
-            agent = ReActAgent(llm=llm, max_steps=max_steps)
+            agent = ReActAgent(llm=llm, max_steps=max_steps, cache_ttl=cache_ttl)
             return agent.run(prompt)
         else:
             chatbot = OpenAIChatbot()
@@ -132,7 +128,8 @@ def run_with_fallback(prompt, mode, provider_choice, max_steps=None):
 # CHAT INPUT
 # =========================
 if prompt := st.chat_input("Nhập câu hỏi của bạn..."):
-    # User message
+
+    # Save user message
     st.session_state.messages.append({
         "role": "user",
         "content": prompt
@@ -145,30 +142,22 @@ if prompt := st.chat_input("Nhập câu hỏi của bạn..."):
     with st.chat_message("assistant", avatar="🤖"):
         with st.spinner("Thinking..."):
             try:
-<<<<<<< HEAD
                 result, provider_used = run_with_fallback(
-                    prompt, mode, provider_choice, max_steps
+                    prompt, mode, provider_choice, max_steps, cache_ttl
                 )
 
-                response = result["response"]
+                response = result.get("response", "⚠️ No response returned")
 
-                # Show provider info
+                # Show fallback warning
                 if "fallback" in provider_used:
                     st.warning(f"⚠️ Fallback activated → {provider_used}")
-=======
-                if mode == "🤖 Agent (Real-time API)":
-                    llm = GeminiProvider()
-                    agent = ReActAgent(llm=llm, max_steps=max_steps, cache_ttl=cache_ttl)
-                    result = agent.run(prompt)
-                    response = result["response"]
-                    
-                    if result.get("cached"):
-                        response += "\n\n> ⚡ *Kết quả được tự động lấy từ bộ nhớ đệm (Lịch sử truy vấn) - Tokens: 0*"
-                        
-                    role = "agent"
->>>>>>> 8f9cebbe1372552b8a6f7795f417a03d3279af71
-                else:
-                    st.caption(f"Provider: {provider_used}")
+
+                # Show provider
+                st.caption(f"Provider: {provider_used}")
+
+                # Cache info
+                if result.get("cached"):
+                    response += "\n\n> ⚡ *Kết quả được lấy từ cache (0 tokens)*"
 
                 st.markdown(response)
 
